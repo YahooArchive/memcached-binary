@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>libs/memcached_bclient.js</title>
+    <link rel="stylesheet" href="http://yui.yahooapis.com/3.9.1/build/cssgrids/cssgrids-min.css">
+    <link rel="stylesheet" href="../assets/vendor/prettify/prettify-min.css">
+    <link rel="stylesheet" href="../assets/css/main.css" id="site_styles">
+    <link rel="icon" href="../assets/favicon.ico">
+    <script src="http://yui.yahooapis.com/combo?3.9.1/build/yui/yui-min.js"></script>
+</head>
+<body class="yui3-skin-sam">
+
+<div id="doc">
+    <div id="hd" class="yui3-g header">
+        <div class="yui3-u-3-4">
+                <h1><img src="../assets/css/logo.png" title="" width="117" height="52"></h1>
+        </div>
+        <div class="yui3-u-1-4 version">
+            <em>API Docs for: </em>
+        </div>
+    </div>
+    <div id="bd" class="yui3-g">
+
+        <div class="yui3-u-1-4">
+            <div id="docs-sidebar" class="sidebar apidocs">
+                <div id="api-list">
+                    <h2 class="off-left">APIs</h2>
+                    <div id="api-tabview" class="tabview">
+                        <ul class="tabs">
+                            <li><a href="#api-classes">Classes</a></li>
+                            <li><a href="#api-modules">Modules</a></li>
+                        </ul>
+                
+                        <div id="api-tabview-filter">
+                            <input type="search" id="api-filter" placeholder="Type to filter APIs">
+                        </div>
+                
+                        <div id="api-tabview-panel">
+                            <ul id="api-classes" class="apis classes">
+                                <li><a href="../classes/MemcachedBinaryClient.html">MemcachedBinaryClient</a></li>
+                            </ul>
+                
+                
+                            <ul id="api-modules" class="apis modules">
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="yui3-u-3-4">
+                <div id="api-options">
+                    Show:
+                    <label for="api-show-inherited">
+                        <input type="checkbox" id="api-show-inherited" checked>
+                        Inherited
+                    </label>
+            
+                    <label for="api-show-protected">
+                        <input type="checkbox" id="api-show-protected">
+                        Protected
+                    </label>
+            
+                    <label for="api-show-private">
+                        <input type="checkbox" id="api-show-private">
+                        Private
+                    </label>
+                    <label for="api-show-deprecated">
+                        <input type="checkbox" id="api-show-deprecated">
+                        Deprecated
+                    </label>
+            
+                </div>
+            
+            <div class="apidocs">
+                <div id="docs-main">
+                    <div class="content">
+<h1 class="file-heading">File: libs/memcached_bclient.js</h1>
+
+<div class="file">
+    <pre class="code prettyprint linenums">
+/*
+ * Copyright (c) 2011 Tim Eggert
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the &quot;Software&quot;), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ * @author Tim Eggert &lt;tim@elbart.com&gt;
+ * @license http://www.opensource.org/licenses/mit-license.html MIT License
+ *
+ */
+
+/*
+ * This is a heavily modified version of https://github.com/elbart/node-memcache/
+ * which is Copyright 2011 Tim Eggert per the above copyright notice.
+ * Most portions of this code are Copyright 2016, Yahoo Inc.
+ * Copyrights licensed under the New BSD License.
+ * See the accompanying LICENSE file for terms.
+ */
+
+// Simple Memcached client connection using the binary protocol
+// Default operation mode still ends up reading and writing strings, but the
+// binary protocol is faster and less error-prone.
+
+var net = require(&#x27;net&#x27;);
+var util = require(&#x27;util&#x27;);
+var assert = require(&#x27;assert&#x27;);
+
+/**
+ * Memcached binary client
+ *
+ * @class MemcachedBinaryClient
+ * @param {String} server The memcached server location (e.g. &#x27;/somesocketpath&#x27; or &#x27;somehost:someport&#x27;)
+ * @param {Object} [params] Optional params object
+ * @param {Object} [params.logger] Console-compatible logger, defaults to console
+ * @param {Integer} [params.max_reconnect_tries] Maximum number of times to try
+ *                  reconnecting after a disconnect, set to 0 to disable automatic
+ *                  reconnects, default = Infinity
+ * @param {Object} [params.use_buffers] Return Buffer objects instead of strings,
+ *                  default = false
+ * @constructor
+ */
+var MemcachedBinaryClient = function(server, params) {
+  params = params || {};
+  this.server = server || [11211, &#x27;localhost&#x27;];
+  if (typeof this.server === &#x27;string&#x27; &amp;&amp; this.server[0] !== &#x27;/&#x27;) {
+    // A string like localhost:11211, need to split into [port, host]
+    // String paths that start with &#x27;/&#x27; we leave alone, as they&#x27;re unix socket paths
+    this.server = this.server.split(&#x27;:&#x27;).reverse();
+  }
+  this.connection = null;
+  this.logger = params.logger || console;
+
+  this.requests = []; // FIFO of outstanding request objects
+
+  this.response_data_buffer = null; // Binary buffer for incomplete binary responses
+  this.request_buffer_pool = []; // Pool of finished request buffers
+
+  this.status_messages = []; // Maps status codes to their error messages so we don&#x27;t rebuild them every time
+
+  this.max_reconnect_tries = typeof params.max_reconnect_tries === &#x27;number&#x27; ? params.max_reconnect_tries : Infinity;
+  this.connect_tries = 0; // How many times we&#x27;ve tried to connect
+  this.connect_timeout = null; // The timeout for next connect attempt
+
+  this.use_buffers = !!params.use_buffers;
+
+  this.connect();
+};
+
+util.inherits(MemcachedBinaryClient, process.EventEmitter);
+
+/**
+ * Connect to the memcached server. Called automatically by the constructor.
+ * @method connect
+ */
+MemcachedBinaryClient.prototype.connect = function () {
+  var self = this;
+
+  if (self.connect_timeout) {
+    clearTimeout(self.connect_timeout);
+    self.connect_timeout = null;
+  }
+
+  if (!self.connection) {
+    self.connect_tries += 1;
+
+    if (Array.isArray(self.server)) {
+      self.connection = net.createConnection(self.server[0], self.server[1]);
+    } else {
+      self.connection = net.createConnection(self.server);
+    }
+
+    this.connection.addListener(&#x27;connect&#x27;, function () {
+      self.logger.log(&#x27;Memcached CONNECT: &#x27; + self.server + &#x27; &#x27; + (self.connection ? self.connection.readyState : &#x27;disconnected&#x27;));
+      this.setTimeout(0);
+      this.setNoDelay();
+      self.emit(&#x27;connect&#x27;);
+      self.connect_tries = 0;
+    });
+
+    this.connection.addListener(&#x27;data&#x27;, function (data) {
+      if (self.response_data_buffer) {
+        var newdata = new Buffer(self.response_data_buffer.length + data.length);
+        self.response_data_buffer.copy(newdata);
+        data.copy(newdata, self.response_data_buffer.length);
+        data = newdata;
+        self.response_data_buffer = null;
+      }
+
+      while(data) {
+        data = self.handleData(data);
+      }
+    });
+
+    this.connection.addListener(&#x27;end&#x27;, function () {
+      self.logger.log(&#x27;Memcached END&#x27;);
+      self.connection &amp;&amp; self.connection.end();
+      self.removeConnection();
+    });
+
+    this.connection.addListener(&#x27;close&#x27;, function () {
+      self.logger.log(&#x27;Memcached CLOSE&#x27;);
+      self.removeConnection();
+      self.emit(&#x27;close&#x27;);
+    });
+
+    this.connection.addListener(&#x27;timeout&#x27;, function () {
+      self.logger.log(&#x27;Memcached TIMEOUT&#x27;);
+      self.removeConnection();
+      self.emit(&#x27;timeout&#x27;);
+    });
+
+    this.connection.addListener(&#x27;error&#x27;, function (ex) {
+      self.logger.log(&#x27;Memcached ERROR: &#x27; + JSON.stringify(ex));
+      self.removeConnection();
+      // Fail less catastrophically than error
+      self.emit(&#x27;close&#x27;);
+    });
+  }
+};
+
+/**
+ * Returns true if the internal connection is open
+ * @method isConnected
+ */
+MemcachedBinaryClient.prototype.isConnected = function() {
+  return this.connection ? this.connection.readyState === &#x27;open&#x27; : false;
+};
+
+/**
+ * Closes the connection to the memcached server
+ * @method close
+ */
+MemcachedBinaryClient.prototype.close = function() {
+  if (this.connection) {
+    this.logger.log(&#x27;Memcached closing&#x27;);
+    this.connection.end();
+    this.removeConnection();
+  }
+};
+
+// Clean up after any kind of disconnect
+// Removes the connection, clears the data buffer, and sends all outstanding requests error responses, may automatically call reconnect
+MemcachedBinaryClient.prototype.removeConnection = function() {
+  if (this.connection) {
+    this.logger.log(&#x27;Memcached removing connection, &#x27; + this.requests.length + &#x27; outstanding&#x27;);
+    this.connection = null;
+    this.response_data_buffer = null;
+    while(this.requests.length) {
+      var request = this.requests.shift();
+      if (request !== null &amp;&amp; request.callback){
+        request.callback(&#x27;Memcached connection removed&#x27;, null);
+      }
+    }
+
+    if (this.connect_tries &gt;= this.max_reconnect_tries) {
+      // have tried enough times, permanent failure
+    } else {
+      this.reconnect();
+    }
+  }
+};
+
+// Sets a timeout to connect() based on number of prior connect attempts
+MemcachedBinaryClient.prototype.reconnect = function() {
+  if (!this.connection &amp;&amp; !this.connect_timeout) {
+    var backoff = Math.pow(2, this.connect_tries &gt; 8 ? 8 : this.connect_tries);
+    this.logger.log(&#x27;Memcached reconnecting in &#x27; + backoff + &#x27;s&#x27;);
+    this.connect_timeout = setTimeout(this.connect.bind(this), 1000 * backoff);
+  }
+};
+
+
+// Binary interface
+
+// Finds the smallest buffer in the bucket that is at least len
+MemcachedBinaryClient.prototype.getRequestBuffer = function(len) {
+  var i, buf, bufidx = -1, buflen = 0;
+  for (i = this.request_buffer_pool.length - 1; i &gt;= 0; i--) {
+    if (this.request_buffer_pool[i].length &gt;= len &amp;&amp; (!buflen || this.request_buffer_pool[i].length &lt; buflen)) {
+      buflen = this.request_buffer_pool[i].length;
+      bufidx = i;
+    }
+  }
+  if (bufidx &gt;= 0) {
+    buf = (this.request_buffer_pool.splice(bufidx, 1))[0];
+  } else {
+    buf = new Buffer(len);
+    buf[0] = 0x80;
+  }
+  assert.ok(buf[0] === 0x80);
+  buf.fill(0, 2, 24);
+  return buf;
+};
+
+// Processes incoming data from the server
+MemcachedBinaryClient.prototype.handleData = function(buf) {
+  assert.ok(buf[0] === 0x81);
+
+  if (buf.length &lt; 24) {
+    // Don&#x27;t have a full header yet, save it for later
+    this.response_data_buffer = buf;
+    return null;
+  }
+
+  var opcode = buf[1];
+  var status = buf[7]; // No status values use byte 6 yet
+  var body_length = (buf[8] &lt;&lt; 24) + (buf[9] &lt;&lt; 16) + (buf[10] &lt;&lt; 8) + buf[11];
+
+  if (buf.length &lt; 24 + body_length) {
+    // Don&#x27;t have the full body yet, save it for later
+    this.response_data_buffer = buf;
+    return null;
+  }
+
+  var result_error = null, result_value = null, result_buf;
+  if (status) {
+    if (!this.status_messages[status]) {
+      // errors have no extras/key
+      this.status_messages[status] = buf.toString(&#x27;utf8&#x27;, 24, 24 + body_length);
+    }
+    if (status !== 1) { // 1 (Not found) is not an error
+      result_error = status.toString() + &#x27; &#x27; + (this.status_messages[status] || &#x27;Unknown error&#x27;);
+    }
+  } else {
+    var key_length = (buf[2] &lt;&lt; 8) + buf[3];
+    var extras_length = buf[4];
+    if (this.use_buffers) {
+      result_value = buf.slice(24 + extras_length + key_length, 24 + body_length);
+    } else {
+      result_value = buf.toString(&#x27;utf8&#x27;, 24 + extras_length + key_length, 24 + body_length);
+    }
+  }
+
+  var request = this.requests.shift();
+  if (!request) {
+    // Got a response and we don&#x27;t have any requests?!
+    this.logger.error(&#x27;Memcached null request, &#x27; + this.requests.length + &#x27; outstanding&#x27;);
+    this.close();
+    return null;
+  }
+  if (request.opcode !== opcode) {
+    // Got a mismatched response
+    this.logger.error(&#x27;Memcached request response opcode mismatch: request &#x27; + request.opcode + &#x27; response &#x27; + opcode);
+    this.requests.unshift(request); // Put it back into the request list so its callback is called when we close
+    this.close();
+    return null;
+  }
+
+  if (request.callback){
+    if (request.cas_request) {
+      result_value = {
+        val: result_value,
+        cas: {
+          high: (buf[16] &lt;&lt; 24) + (buf[17] &lt;&lt; 16) + (buf[18] &lt;&lt; 8) + buf[19],
+          low: (buf[20] &lt;&lt; 24) + (buf[21] &lt;&lt; 16) + (buf[22] &lt;&lt; 8) + buf[23]
+        }
+      };
+    }
+    request.callback(result_error, result_value);
+  }
+
+  if (buf.length &gt; 24 + body_length) {
+    result_buf = buf.slice(24 + body_length);
+  }
+
+  return result_buf;
+};
+
+// Makes a request to the server
+MemcachedBinaryClient.prototype.bquery = function(buffer, length, opcode, cas_request, callback) {
+  var self = this;
+  if (self.connection) {
+    assert.ok(buffer[0] === 0x80);
+    var request_domain = process.domain;
+    if (request_domain &amp;&amp; callback) {
+      var orig_callback = callback;
+      callback = function (err, result) {
+        request_domain.run(function () {
+          orig_callback(err, result);
+        });
+      };
+    }
+    self.requests.push({ opcode: opcode, cas_request: cas_request, callback: callback });
+    var did_pool = false;
+    self.connection.write(buffer.slice(0, length), function() {
+      assert.ok(!did_pool);
+      did_pool = true;
+      self.request_buffer_pool.push(buffer);
+    });
+  } else if (callback) {
+    callback(&#x27;Memcached not connected&#x27;, null);
+  }
+};
+
+// Makes a general store-type request to the server (e.g. set, add)
+MemcachedBinaryClient.prototype.bstore = function(opcode, key, value, lifetime, flags, cas_test, callback) {
+  var set_flags = flags || 0;
+  var exp_time  = lifetime || 0;
+  var value_is_buffer = Buffer.isBuffer(value);
+  var value_str;
+  var value_bytes;
+  if (!value_is_buffer) {
+    value_str = value.toString();
+    value_bytes = Buffer.byteLength(value_str);
+  } else {
+    value_bytes = value.length;
+  }
+  var extra_len = 8; // set, add and replace all include 4 byte flags and 4 byte expiration
+  var buflen = 24 + extra_len + Buffer.byteLength(key) + value_bytes;
+  var buf = this.getRequestBuffer(buflen);
+  buf[1] = opcode;
+  buf[4] = extra_len;
+  if (cas_test) {
+    buf.writeUInt32BE(cas_test.high, 16);
+    buf.writeUInt32BE(cas_test.low, 20);
+  }
+  buf.writeUInt32BE(set_flags, 24);
+  buf.writeUInt32BE(exp_time, 28);
+  var key_bytes = buf.write(key, 32);
+  if (value_is_buffer) {
+    value.copy(buf, 32 + key_bytes);
+  } else {
+    var value_bytes_test = buf.write(value_str, 32 + key_bytes);
+    assert.equal(value_bytes_test, value_bytes);
+  }
+  buf.writeUInt16BE(key_bytes, 2);
+  buf.writeUInt32BE(extra_len + key_bytes + value_bytes, 8);
+
+  var total_len = 24 + extra_len + key_bytes + value_bytes;
+  assert.ok(total_len === buflen);
+  return this.bquery(buf, total_len, opcode, false, callback);
+};
+
+// Makes a simple key-based request to the server with no extra parameters (e.g. get, del)
+MemcachedBinaryClient.prototype.bkey = function(opcode, key, cas_request, callback) {
+  var buflen = 24 + key.length;
+  var buf = this.getRequestBuffer(buflen);
+  buf[1] = opcode;
+  var key_bytes = buf.write(key, 24);
+  buf.writeUInt16BE(key_bytes, 2);
+  buf.writeUInt32BE(key_bytes, 8);
+  return this.bquery(buf, 24 + key_bytes, opcode, cas_request, callback);
+};
+
+/**
+ * Retrieve data
+ * @method get
+ * @param {String} key Cache key
+ * @param {Object} [params] Optional parameters (pass null if passing a callback argument)
+ * @param {Boolean} [params.cas] Request a result object with value and cas fields
+ * @param {Function} [callback] Function(err, res) called with memcached get err and result
+ * @async
+ */
+MemcachedBinaryClient.prototype.get = function(key, params, callback) {
+  params = params || {};
+  return this.bkey(0x00, key, params.cas, callback);
+};
+
+/**
+ * Store data
+ * @method set
+ * @param {String} key Cache key
+ * @param {String} value Cached value
+ * @param {Object} [params] Optional parameters (pass null if passing a callback argument)
+ * @param {Number} [params.lifetime] Time in seconds to cache the results
+ * @param {Object} [params.cas] Object with cas data to test against
+ * @param {Number} [params.flags] Flags to set in memcached
+ * @param {Function} [callback] Function(err, res) called with memcached set err and result
+ * @async
+ */
+MemcachedBinaryClient.prototype.set = function(key, value, params, callback) {
+  params = params || {};
+  return this.bstore(0x01, key, value, params.lifetime, params.flags, params.cas, callback);
+};
+
+/**
+ * Store data, fails if key exists
+ * @method add
+ * @param {String} key Cache key
+ * @param {String} value Cached value
+ * @param {Object} [params] Optional parameters (pass null if passing a callback argument)
+ * @param {Number} [params.lifetime] Time in seconds to cache the results
+ * @param {Number} [params.flags] Flags to set in memcached
+ * @param {Function} [callback] Function(err, res) called with memcached add err and result
+ * @async
+ */
+MemcachedBinaryClient.prototype.add = function(key, value, params, callback) {
+  params = params || {};
+  return this.bstore(0x02, key, value, params.lifetime, params.flags, null, callback);
+};
+
+/**
+ * Store data, fails if the key doesn&#x27;t exist
+ * @method replace
+ * @param {String} key Cache key
+ * @param {String} value Cached value
+ * @param {Object} [params] Optional parameters (pass null if passing a callback argument)
+ * @param {Number} [params.lifetime] Time in seconds to cache the results
+ * @param {Object} [params.cas] Object with cas data to test against
+ * @param {Number} [params.flags] Flags to set in memcached
+ * @param {Function} [callback] Function(err, res) called with memcached replace err and result
+ * @async
+ */
+MemcachedBinaryClient.prototype.replace = function(key, value, params, callback) {
+  params = params || {};
+  return this.bstore(0x03, key, value, params.lifetime, params.flags, params.cas, callback);
+};
+
+/**
+ * Remove data
+ * @method del
+ * @param {String} key Cache key
+ * @param {Object} [params] Optional parameters (pass null if passing a callback argument)
+ * @param {Boolean} [params.cas_request] Request a result object with value and cas fields, rather
+ * @param {Function} [callback] Function(err, res) called with memcached del err and result
+ * @async
+ */
+MemcachedBinaryClient.prototype.del = function(key, params, callback) {
+  params = params || {};
+  return this.bkey(0x04, key, null, callback);
+};
+
+module.exports = MemcachedBinaryClient;
+
+    </pre>
+</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="../assets/vendor/prettify/prettify-min.js"></script>
+<script>prettyPrint();</script>
+<script src="../assets/js/yui-prettify.js"></script>
+<script src="../assets/../api.js"></script>
+<script src="../assets/js/api-filter.js"></script>
+<script src="../assets/js/api-list.js"></script>
+<script src="../assets/js/api-search.js"></script>
+<script src="../assets/js/apidocs.js"></script>
+</body>
+</html>

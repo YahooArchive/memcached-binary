@@ -1,0 +1,316 @@
+{
+    "project": {},
+    "files": {
+        "libs/memcached_bclient.js": {
+            "name": "libs/memcached_bclient.js",
+            "modules": {},
+            "classes": {
+                "MemcachedBinaryClient": 1
+            },
+            "fors": {},
+            "namespaces": {}
+        }
+    },
+    "modules": {},
+    "classes": {
+        "MemcachedBinaryClient": {
+            "name": "MemcachedBinaryClient",
+            "shortname": "MemcachedBinaryClient",
+            "classitems": [],
+            "plugins": [],
+            "extensions": [],
+            "plugin_for": [],
+            "extension_for": [],
+            "file": "libs/memcached_bclient.js",
+            "line": 43,
+            "description": "Memcached binary client",
+            "params": [
+                {
+                    "name": "server",
+                    "description": "The memcached server location (e.g. '/somesocketpath' or 'somehost:someport')",
+                    "type": "String"
+                },
+                {
+                    "name": "params",
+                    "description": "Optional params object",
+                    "type": "Object",
+                    "optional": true,
+                    "props": [
+                        {
+                            "name": "logger",
+                            "description": "Console-compatible logger, defaults to console",
+                            "type": "Object",
+                            "optional": true
+                        },
+                        {
+                            "name": "max_reconnect_tries",
+                            "description": "Maximum number of times to try\n                 reconnecting after a disconnect, set to 0 to disable automatic\n                 reconnects, default = Infinity",
+                            "type": "Integer",
+                            "optional": true
+                        },
+                        {
+                            "name": "use_buffers",
+                            "description": "Return Buffer objects instead of strings,\n                 default = false",
+                            "type": "Object",
+                            "optional": true
+                        }
+                    ]
+                }
+            ],
+            "is_constructor": 1
+        }
+    },
+    "elements": {},
+    "classitems": [
+        {
+            "file": "libs/memcached_bclient.js",
+            "line": 86,
+            "description": "Connect to the memcached server. Called automatically by the constructor.",
+            "itemtype": "method",
+            "name": "connect",
+            "class": "MemcachedBinaryClient"
+        },
+        {
+            "file": "libs/memcached_bclient.js",
+            "line": 156,
+            "description": "Returns true if the internal connection is open",
+            "itemtype": "method",
+            "name": "isConnected",
+            "class": "MemcachedBinaryClient"
+        },
+        {
+            "file": "libs/memcached_bclient.js",
+            "line": 164,
+            "description": "Closes the connection to the memcached server",
+            "itemtype": "method",
+            "name": "close",
+            "class": "MemcachedBinaryClient"
+        },
+        {
+            "file": "libs/memcached_bclient.js",
+            "line": 380,
+            "description": "Retrieve data",
+            "itemtype": "method",
+            "name": "get",
+            "params": [
+                {
+                    "name": "key",
+                    "description": "Cache key",
+                    "type": "String"
+                },
+                {
+                    "name": "params",
+                    "description": "Optional parameters (pass null if passing a callback argument)",
+                    "type": "Object",
+                    "optional": true,
+                    "props": [
+                        {
+                            "name": "cas",
+                            "description": "Request a result object with value and cas fields",
+                            "type": "Boolean",
+                            "optional": true
+                        }
+                    ]
+                },
+                {
+                    "name": "callback",
+                    "description": "Function(err, res) called with memcached get err and result",
+                    "type": "Function",
+                    "optional": true
+                }
+            ],
+            "async": 1,
+            "class": "MemcachedBinaryClient"
+        },
+        {
+            "file": "libs/memcached_bclient.js",
+            "line": 394,
+            "description": "Store data",
+            "itemtype": "method",
+            "name": "set",
+            "params": [
+                {
+                    "name": "key",
+                    "description": "Cache key",
+                    "type": "String"
+                },
+                {
+                    "name": "value",
+                    "description": "Cached value",
+                    "type": "String"
+                },
+                {
+                    "name": "params",
+                    "description": "Optional parameters (pass null if passing a callback argument)",
+                    "type": "Object",
+                    "optional": true,
+                    "props": [
+                        {
+                            "name": "lifetime",
+                            "description": "Time in seconds to cache the results",
+                            "type": "Number",
+                            "optional": true
+                        },
+                        {
+                            "name": "cas",
+                            "description": "Object with cas data to test against",
+                            "type": "Object",
+                            "optional": true
+                        },
+                        {
+                            "name": "flags",
+                            "description": "Flags to set in memcached",
+                            "type": "Number",
+                            "optional": true
+                        }
+                    ]
+                },
+                {
+                    "name": "callback",
+                    "description": "Function(err, res) called with memcached set err and result",
+                    "type": "Function",
+                    "optional": true
+                }
+            ],
+            "async": 1,
+            "class": "MemcachedBinaryClient"
+        },
+        {
+            "file": "libs/memcached_bclient.js",
+            "line": 411,
+            "description": "Store data, fails if key exists",
+            "itemtype": "method",
+            "name": "add",
+            "params": [
+                {
+                    "name": "key",
+                    "description": "Cache key",
+                    "type": "String"
+                },
+                {
+                    "name": "value",
+                    "description": "Cached value",
+                    "type": "String"
+                },
+                {
+                    "name": "params",
+                    "description": "Optional parameters (pass null if passing a callback argument)",
+                    "type": "Object",
+                    "optional": true,
+                    "props": [
+                        {
+                            "name": "lifetime",
+                            "description": "Time in seconds to cache the results",
+                            "type": "Number",
+                            "optional": true
+                        },
+                        {
+                            "name": "flags",
+                            "description": "Flags to set in memcached",
+                            "type": "Number",
+                            "optional": true
+                        }
+                    ]
+                },
+                {
+                    "name": "callback",
+                    "description": "Function(err, res) called with memcached add err and result",
+                    "type": "Function",
+                    "optional": true
+                }
+            ],
+            "async": 1,
+            "class": "MemcachedBinaryClient"
+        },
+        {
+            "file": "libs/memcached_bclient.js",
+            "line": 427,
+            "description": "Store data, fails if the key doesn't exist",
+            "itemtype": "method",
+            "name": "replace",
+            "params": [
+                {
+                    "name": "key",
+                    "description": "Cache key",
+                    "type": "String"
+                },
+                {
+                    "name": "value",
+                    "description": "Cached value",
+                    "type": "String"
+                },
+                {
+                    "name": "params",
+                    "description": "Optional parameters (pass null if passing a callback argument)",
+                    "type": "Object",
+                    "optional": true,
+                    "props": [
+                        {
+                            "name": "lifetime",
+                            "description": "Time in seconds to cache the results",
+                            "type": "Number",
+                            "optional": true
+                        },
+                        {
+                            "name": "cas",
+                            "description": "Object with cas data to test against",
+                            "type": "Object",
+                            "optional": true
+                        },
+                        {
+                            "name": "flags",
+                            "description": "Flags to set in memcached",
+                            "type": "Number",
+                            "optional": true
+                        }
+                    ]
+                },
+                {
+                    "name": "callback",
+                    "description": "Function(err, res) called with memcached replace err and result",
+                    "type": "Function",
+                    "optional": true
+                }
+            ],
+            "async": 1,
+            "class": "MemcachedBinaryClient"
+        },
+        {
+            "file": "libs/memcached_bclient.js",
+            "line": 444,
+            "description": "Remove data",
+            "itemtype": "method",
+            "name": "del",
+            "params": [
+                {
+                    "name": "key",
+                    "description": "Cache key",
+                    "type": "String"
+                },
+                {
+                    "name": "params",
+                    "description": "Optional parameters (pass null if passing a callback argument)",
+                    "type": "Object",
+                    "optional": true,
+                    "props": [
+                        {
+                            "name": "cas_request",
+                            "description": "Request a result object with value and cas fields, rather",
+                            "type": "Boolean",
+                            "optional": true
+                        }
+                    ]
+                },
+                {
+                    "name": "callback",
+                    "description": "Function(err, res) called with memcached del err and result",
+                    "type": "Function",
+                    "optional": true
+                }
+            ],
+            "async": 1,
+            "class": "MemcachedBinaryClient"
+        }
+    ],
+    "warnings": []
+}
