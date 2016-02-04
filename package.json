@@ -1,0 +1,34 @@
+{
+  "name": "memcached-binary",
+  "description": "Binary Memcached client for Node.js",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Jimb Esser (https://github.com/Jimbly)",
+  "contributors": [
+    "Jered Windsheimer (https://github.com/jwindshe)"
+  ],
+  "keywords": [
+    "memcached",
+    "yahoo"
+  ],
+  "dependencies": {
+  },
+  "devDependencies": {
+    "chai": "^1.10.0",
+    "jenkins-mocha": "^2.4.0",
+    "mockery": "^1.4.0",
+    "lodash": "^2.4.1",
+    "yuidocjs": "^0.10.0"
+  },
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com/yahoo/memcached-binary/memcached-binary.git#master"
+  },
+  "scripts": {
+    "cover": "jenkins-mocha --reporter spec tests/unit/",
+    "ci-cover": "jenkins-mocha tests/unit/",
+    "doc": "yuidoc --outdir docs/ .",
+    "test": "jenkins-mocha --no-coverage --reporter spec tests/unit/"
+  }
+}
