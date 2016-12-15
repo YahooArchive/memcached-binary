@@ -1,7 +1,7 @@
 {
   "name": "memcached-binary",
   "description": "Binary Memcached client for Node.js",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "index.js",
   "author": "Jimb Esser (https://github.com/Jimbly)",
   "contributors": [
