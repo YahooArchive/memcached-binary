@@ -39,6 +39,7 @@
 var net = require('net');
 var util = require('util');
 var assert = require('assert');
+var events = require('events');
 
 /**
  * Memcached binary client
@@ -81,7 +82,7 @@ var MemcachedBinaryClient = function(server, params) {
   this.connect();
 };
 
-util.inherits(MemcachedBinaryClient, process.EventEmitter);
+util.inherits(MemcachedBinaryClient, events.EventEmitter);
 
 /**
  * Connect to the memcached server. Called automatically by the constructor.
