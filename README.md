@@ -1,3 +1,5 @@
+**Please Note**: This repo has a known security vulnerability and is no longer maintained. Use at your own risk!
+
 memcached-binary
 ================
 
